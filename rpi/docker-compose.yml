@@ -1,0 +1,86 @@
+# Raspberry Pi向け: FleetWise Edge Agent + micro-ROS Agent
+#
+# - micro-ROS Agent(XRCE-DDS Agent)はUDPv4で待受(既定: 8888)
+# - FWE Edge AgentはROS2インターフェースを有効化してROS2トピックを購読
+# - ROS 2(DDS) 側は Fast DDS の共有メモリ(SHM)を優先して同一ホスト内通信を高速化
+#
+# 使い方:
+#   cp rpi/agents.env.example rpi/agents.env
+#   # rpi/agents.env を編集してAWS IoTの値を埋める
+#   ./rpi/run_agents.sh up
+#
+services:
+  microros-agent:
+    image: microros/micro-ros-agent:humble
+    container_name: microros-agent
+    network_mode: host
+    ipc: host
+    volumes:
+      # Fast DDS SHM をコンテナ間で使うため、ホストの /dev/shm を共有する
+      - /dev:/dev
+      - /dev/shm:/dev/shm
+    # micro-ROS Agent CLI:
+    #   udp4 --port <PORT> -v6
+    command: ["udp4", "--port", "${MICRO_ROS_AGENT_PORT:-8888}", "-v${MICRO_ROS_AGENT_VERBOSITY:-6}"]
+    environment:
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_DISTRO=humble
+      # ROS 2(DDS) 側の transport: 同一ホスト内の通信はSHM優先
+      - FASTDDS_BUILTIN_TRANSPORTS=SHM
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "micro_ros_agent"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  fwe-edge-agent:
+    # NOTE:
+    # - カスタムイメージを使う場合は、RPi側で事前に `niizawat/aws-iot-fleetwise-edge-ros2:ros2-custom` を利用可能にしておく
+    #   (docker login/pull できる、または docker load 済み、など)
+    # - 未準備の場合はpullに失敗して起動できないので、デフォルトは公式ECR Publicを使う
+    image: public.ecr.aws/aws-iot-fleetwise-edge/aws-iot-fleetwise-edge-ros2:latest
+    # image: niizawat/aws-iot-fleetwise-edge-ros2:ros2-custom
+    container_name: fwe-edge-agent
+    network_mode: host
+    ipc: host
+    volumes:
+      - /dev:/dev
+      - /dev/shm:/dev/shm
+      # AWS IoT Device証明書/秘密鍵
+      - ./cert/certificate.pem:/etc/aws-iot-fleetwise/certificate.pem:ro
+      - ./cert/private.key:/etc/aws-iot-fleetwise/private-key.key:ro
+    environment:
+      # AWS/FWE
+      - VEHICLE_NAME=${VEHICLE_NAME}
+      - ENDPOINT_URL=${ENDPOINT_URL}
+      - CREDS_ENDPOINT_URL=${CREDS_ENDPOINT_URL}
+      - CREDS_ROLE_ALIAS=${CREDS_ROLE_ALIAS}
+      # S3 upload
+      - S3_CONNECT_TIMEOUT_MS=10000
+      # ROS2 interface
+      - ENABLE_ROS2_INTERFACE=true
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION}
+      # ROS 2(DDS) 側の transport: 同一ホスト内の通信はSHM優先
+      - FASTDDS_BUILTIN_TRANSPORTS=SHM
+      - COLCON_PREFIX_PATH=/opt/ros/humble
+      # /usr/bin/start-fwe.sh が /opt/ros/humble/local_setup.bash を読む際に
+      # set -u 相当で未定義変数があると落ちるので、空でも良いので定義しておく
+      - AMENT_PREFIX_PATH=
+      - CMAKE_PREFIX_PATH=
+      - COLCON_PYTHON_EXECUTABLE=/usr/bin/python3
+      - ROS_VERSION=2
+      - ROS_PYTHON_VERSION=3
+      - ROS_DISTRO=humble
+      - LD_LIBRARY_PATH=
+      - PKG_CONFIG_PATH=
+      - PYTHONPATH=
+      # ノイズ対策(ビルド/セットアップトレースの抑制)
+      - AMENT_TRACE_SETUP_FILES=
+      - COLCON_TRACE=
+    depends_on:
+      - microros-agent
+    restart: unless-stopped

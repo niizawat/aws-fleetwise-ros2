@@ -1,0 +1,10 @@
+# SpecStory explanation file
+.specstory/
+
+.pio/
+
+# Local-only configs / secrets (DO NOT COMMIT)
+src/secret.h
+rpi/agents.env
+rpi/cert/certificate.pem
+rpi/cert/private.key

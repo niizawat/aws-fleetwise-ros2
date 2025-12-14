@@ -1,0 +1,40 @@
+# Welcome to your CDK TypeScript project
+
+This is a blank project for CDK development with TypeScript.
+
+The `cdk.json` file tells the CDK Toolkit how to execute your app.
+
+## Prerequisites
+
+- mise (runtime version manager)
+- pnpm >= 8.0.0 (miseで自動インストールされます)
+
+## Configuration
+
+### セキュリティ設定
+
+このプロジェクトでは、リリースから21日未満のパッケージをインストールしないように設定されています（`.npmrc`の`minimum-release-age=30240`）。これにより、リリース直後のパッケージによる潜在的なリスクを低減します。
+
+## Installation
+
+### 1. miseでツールをインストール
+
+```bash
+# miseでpnpmをインストール（.mise.tomlに基づいて自動的にインストールされます）
+mise install
+```
+
+### 2. 依存関係をインストール
+
+```bash
+pnpm install
+```
+
+## Useful commands
+
+* `pnpm run build`   compile typescript to js
+* `pnpm run watch`   watch for changes and compile
+* `pnpm run test`    perform the jest unit tests
+* `pnpm exec cdk deploy`  deploy this stack to your default AWS account/region
+* `pnpm exec cdk diff`    compare deployed stack with current state
+* `pnpm exec cdk synth`   emits the synthesized CloudFormation template
